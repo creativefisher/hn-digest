@@ -8,7 +8,6 @@ account_id = "ab926f8277b75892c2adb52733be48b5"
 [assets]
 directory = "./public"
 binding = "ASSETS"
-run_worker_first = true
 
 [ai]
 binding = "AI"
@@ -23,4 +22,4 @@ crons = ["*/10 * * * *"]
 [vars]
 AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 TOP_N = "30"
-SUMMARIES_PER_RUN = "4"
+SUMMARIES_PER_RUN = "3"

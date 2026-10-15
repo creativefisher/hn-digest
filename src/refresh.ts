@@ -92,7 +92,8 @@ export async function refreshFrontPage(env: Env): Promise<FrontPage> {
           !(story.text && story.text.length >= 80);
         if (needsFallback) {
           const item = byId.get(story.id);
-          comments = await fetchTopComments(item?.kids, 5);
+          // Free plan: 50 subrequests/invocation. Keep comment fan-out tiny.
+          comments = await fetchTopComments(item?.kids, 3);
         }
 
         const rec = await summarizeStory(env, story, articleText, comments);
