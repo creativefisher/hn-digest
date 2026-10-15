@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Hacker News front page with AI-written article summaries." />
+  <title>HN Digest — Front page, summarized</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23ff6600'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='16' font-family='sans-serif' font-weight='700' fill='white'%3EY%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">Y</span>
+      <div>
+        <h1>HN Digest</h1>
+        <p class="tagline">Front page stories, summarized in plain language</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <p class="updated" id="updated" aria-live="polite">Loading…</p>
+      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle color theme">
+        <span class="sun">☀</span><span class="moon">☾</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <section class="stats" id="stats" hidden>
+      <span id="statReady"></span>
+      <span id="statPending"></span>
+      <span id="statUnavailable"></span>
+    </section>
+    <div id="error" class="error" hidden></div>
+    <ol class="feed" id="feed" aria-busy="true">
+      <!-- skeleton cards -->
+      <li class="card skeleton" aria-hidden="true"></li>
+      <li class="card skeleton" aria-hidden="true"></li>
+      <li class="card skeleton" aria-hidden="true"></li>
+      <li class="card skeleton" aria-hidden="true"></li>
+      <li class="card skeleton" aria-hidden="true"></li>
+      <li class="card skeleton" aria-hidden="true"></li>
+    </ol>
+  </main>
+
+  <footer class="site-footer">
+    <p>
+      Data from the
+      <a href="https://github.com/HackerNews/API" rel="noopener">HN Firebase API</a>.
+      Summaries generated with Cloudflare Workers AI. Not affiliated with Y Combinator.
+    </p>
+  </footer>
+  <script src="/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+name = "hn-digest"
+main = "src/index.ts"
+compatibility_date = "2024-12-18"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+account_id = "ab926f8277b75892c2adb52733be48b5"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+
+[ai]
+binding = "AI"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "2487154325a045d18bd8b93ee685d556"
+
+[triggers]
+crons = ["*/10 * * * *"]
+
+[vars]
+AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+TOP_N = "30"
+SUMMARIES_PER_RUN = "4"
