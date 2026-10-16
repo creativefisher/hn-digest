@@ -16,10 +16,32 @@ function num(env: Env, key: "TOP_N" | "SUMMARIES_PER_RUN", fallback: number): nu
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Workers KV: max one write per key per second — pace frontpage + meta writes. */
+async function putFrontPagePaced(
+  env: Env,
+  page: FrontPage,
+  lastWriteAt: { ms: number }
+): Promise<void> {
+  const elapsed = Date.now() - lastWriteAt.ms;
+  if (lastWriteAt.ms > 0 && elapsed < 1100) {
+    await sleep(1100 - elapsed);
+  }
+  await putFrontPage(env, page);
+  lastWriteAt.ms = Date.now();
+}
+
+function applySummary(stories: Story[], storyId: number, patch: Partial<Story>): Story[] {
+  return stories.map((s) => (s.id === storyId ? { ...s, ...patch } : s));
+}
+
 /**
  * Refresh frontpage metadata from HN, then summarize up to SUMMARIES_PER_RUN
  * stories that still need a summary. Designed for free-plan CPU limits:
- * page visits never call this; cron/admin do, in small batches.
+ * page visits never wait on AI; cron/admin/background refresh do, in small batches.
  */
 export async function refreshFrontPage(env: Env): Promise<FrontPage> {
   const gotLock = await tryAcquireLock(env, 120);
@@ -37,6 +59,7 @@ export async function refreshFrontPage(env: Env): Promise<FrontPage> {
     pending: 0,
     errors: [],
   };
+  const lastFrontWrite = { ms: 0 };
 
   try {
     const topN = Math.min(num(env, "TOP_N", 30), 30);
@@ -55,7 +78,7 @@ export async function refreshFrontPage(env: Env): Promise<FrontPage> {
     }
     stats.fetched = stories.length;
 
-    // Attach cached summaries
+    // Attach cached summaries (includes putSummary results from prior/partial runs)
     let withSummaries = await mergeSummariesIntoStories(env, stories);
 
     // Persist frontpage early so visitors see fresh ranks even while AI runs
@@ -64,7 +87,7 @@ export async function refreshFrontPage(env: Env): Promise<FrontPage> {
       stories: withSummaries,
       refreshStats: stats,
     };
-    await putFrontPage(env, page);
+    await putFrontPagePaced(env, page, lastFrontWrite);
 
     // Pick stories that need summarization (pending only; skip already ready/unavailable)
     const needWork = withSummaries.filter((s) => s.summaryStatus === "pending");
@@ -74,15 +97,20 @@ export async function refreshFrontPage(env: Env): Promise<FrontPage> {
       try {
         // Double-check cache in case of race
         const existing = await getSummary(env, story.id);
-        if (existing && existing.status !== "pending") continue;
+        if (existing && existing.status !== "pending") {
+          withSummaries = applySummary(withSummaries, story.id, {
+            summary: existing.summary,
+            bullets: existing.bullets ?? [],
+            summaryStatus: existing.status,
+            summarySource: existing.source,
+          });
+          continue;
+        }
 
         let articleText: string | null = null;
         if (story.url) {
           const fetched = await fetchArticleText(story.url);
           articleText = fetched.text;
-          if (!fetched.text && fetched.reason) {
-            // keep going — may fall back to comments/post
-          }
         }
 
         let comments: string[] = [];
@@ -102,30 +130,19 @@ export async function refreshFrontPage(env: Env): Promise<FrontPage> {
         if (rec.status === "ready") stats.summarized++;
         else stats.unavailable++;
 
-        // Patch in-memory + persist so mid-batch timeouts still show finished digests
-        withSummaries = withSummaries.map((s) =>
-          s.id === story.id
-            ? {
-                ...s,
-                summary: rec.summary,
-                bullets: rec.bullets ?? [],
-                summaryStatus: rec.status,
-                summarySource: rec.source,
-              }
-            : s
-        );
-        page = {
-          updatedAt: Date.now(),
-          stories: withSummaries,
-          refreshStats: { ...stats },
-        };
-        await putFrontPage(env, page);
+        // Keep memory in sync; frontpage is written once at the end (KV write-rate safe).
+        // putSummary alone is enough for the next refresh to pick up mid-batch progress.
+        withSummaries = applySummary(withSummaries, story.id, {
+          summary: rec.summary,
+          bullets: rec.bullets ?? [],
+          summaryStatus: rec.status,
+          summarySource: rec.source,
+        });
       } catch (err) {
         stats.errors.push(
           `#${story.id}: ${err instanceof Error ? err.message : String(err)}`
         );
-        // Mark unavailable so we don't retry forever in a tight loop; cron will
-        // still leave other pending stories for later runs.
+        // Only mark unavailable when summarization itself failed — not on frontpage write errors.
         const failRec = {
           id: story.id,
           status: "unavailable" as const,
@@ -135,24 +152,19 @@ export async function refreshFrontPage(env: Env): Promise<FrontPage> {
           updatedAt: Date.now(),
           error: err instanceof Error ? err.message : String(err),
         };
-        await putSummary(env, failRec);
-        withSummaries = withSummaries.map((s) =>
-          s.id === story.id
-            ? {
-                ...s,
-                summary: null,
-                bullets: [],
-                summaryStatus: "unavailable" as const,
-                summarySource: "none" as const,
-              }
-            : s
-        );
-        page = {
-          updatedAt: Date.now(),
-          stories: withSummaries,
-          refreshStats: { ...stats },
-        };
-        await putFrontPage(env, page);
+        try {
+          await putSummary(env, failRec);
+        } catch (putErr) {
+          stats.errors.push(
+            `#${story.id} putSummary: ${putErr instanceof Error ? putErr.message : String(putErr)}`
+          );
+        }
+        withSummaries = applySummary(withSummaries, story.id, {
+          summary: null,
+          bullets: [],
+          summaryStatus: "unavailable",
+          summarySource: "none",
+        });
         stats.unavailable++;
       }
     }
@@ -160,15 +172,13 @@ export async function refreshFrontPage(env: Env): Promise<FrontPage> {
     withSummaries = await mergeSummariesIntoStories(env, stories);
     stats.pending = withSummaries.filter((s) => s.summaryStatus === "pending").length;
     stats.unavailable = withSummaries.filter((s) => s.summaryStatus === "unavailable").length;
-    // recounted ready via summarized this run; keep cumulative from statuses:
-    // leave stats.summarized as "this run"
 
     page = {
       updatedAt: Date.now(),
       stories: withSummaries,
       refreshStats: stats,
     };
-    await putFrontPage(env, page);
+    await putFrontPagePaced(env, page, lastFrontWrite);
     return page;
   } finally {
     if (gotLock) await releaseLock(env);

@@ -76,7 +76,7 @@ echo "$ADMIN_SECRET" | npx wrangler secret put ADMIN_SECRET
 
 - `AI_MODEL` — Workers AI model id
 - `TOP_N` — stories to keep (≤ 30)
-- `SUMMARIES_PER_RUN` — max new summaries per cron/admin refresh (keep small on free plan)
+- `SUMMARIES_PER_RUN` — max new summaries per cron/admin/visit-triggered refresh (keep ≤4 on free plan)
 
 ## License
 

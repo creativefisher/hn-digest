@@ -22,4 +22,4 @@ crons = ["*/5 * * * *"]
 [vars]
 AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 TOP_N = "30"
-SUMMARIES_PER_RUN = "6"
+SUMMARIES_PER_RUN = "4"
