@@ -101,21 +101,58 @@ export async function refreshFrontPage(env: Env): Promise<FrontPage> {
 
         if (rec.status === "ready") stats.summarized++;
         else stats.unavailable++;
+
+        // Patch in-memory + persist so mid-batch timeouts still show finished digests
+        withSummaries = withSummaries.map((s) =>
+          s.id === story.id
+            ? {
+                ...s,
+                summary: rec.summary,
+                bullets: rec.bullets ?? [],
+                summaryStatus: rec.status,
+                summarySource: rec.source,
+              }
+            : s
+        );
+        page = {
+          updatedAt: Date.now(),
+          stories: withSummaries,
+          refreshStats: { ...stats },
+        };
+        await putFrontPage(env, page);
       } catch (err) {
         stats.errors.push(
           `#${story.id}: ${err instanceof Error ? err.message : String(err)}`
         );
         // Mark unavailable so we don't retry forever in a tight loop; cron will
         // still leave other pending stories for later runs.
-        await putSummary(env, {
+        const failRec = {
           id: story.id,
-          status: "unavailable",
+          status: "unavailable" as const,
           summary: null,
-          bullets: [],
-          source: "none",
+          bullets: [] as string[],
+          source: "none" as const,
           updatedAt: Date.now(),
           error: err instanceof Error ? err.message : String(err),
-        });
+        };
+        await putSummary(env, failRec);
+        withSummaries = withSummaries.map((s) =>
+          s.id === story.id
+            ? {
+                ...s,
+                summary: null,
+                bullets: [],
+                summaryStatus: "unavailable" as const,
+                summarySource: "none" as const,
+              }
+            : s
+        );
+        page = {
+          updatedAt: Date.now(),
+          stories: withSummaries,
+          refreshStats: { ...stats },
+        };
+        await putFrontPage(env, page);
         stats.unavailable++;
       }
     }

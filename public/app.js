@@ -109,9 +109,19 @@
     statsEl.hidden = stories.length === 0;
   }
 
+  let pollTimer = null;
+
+  function schedulePoll(ms) {
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = setTimeout(load, ms);
+  }
+
   async function load() {
     try {
-      const res = await fetch("/api/stories", { headers: { Accept: "application/json" } });
+      const res = await fetch("/api/stories", {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error(`API ${res.status}`);
       const data = await res.json();
       errorEl.hidden = true;
@@ -120,8 +130,7 @@
       if (!stories.length) {
         feed.innerHTML = `<li class="card"><div class="rank">…</div><div class="card-body"><p class="summary pending">Fetching the front page for the first time. Refresh in a moment.</p></div></li>`;
         feed.setAttribute("aria-busy", "false");
-        // Poll until we have data
-        setTimeout(load, 4000);
+        schedulePoll(4000);
         return;
       }
       feed.innerHTML = stories.map(renderCard).join("");
@@ -129,19 +138,16 @@
       renderStats(stories);
 
       const pending = stories.some((s) => s.summaryStatus === "pending");
-      if (pending) setTimeout(load, 20000);
+      // Page visits also kick a background refresh; poll often while digests catch up
+      schedulePoll(pending ? 8000 : 5 * 60 * 1000);
     } catch (err) {
       errorEl.hidden = false;
       errorEl.textContent = `Could not load stories: ${err.message || err}`;
       updatedEl.textContent = "Update failed";
       feed.setAttribute("aria-busy", "false");
+      schedulePoll(15000);
     }
   }
 
   load();
-  // Soft refresh of the "Updated X min ago" label
-  setInterval(() => {
-    // re-read from last paint via data attribute if needed — keep simple: reload every 5 min
-  }, 60000);
-  setInterval(load, 5 * 60 * 1000);
 })();

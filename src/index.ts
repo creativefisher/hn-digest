@@ -23,17 +23,25 @@ async function handleApi(request: Request, env: Env, ctx: ExecutionContext): Pro
 
   if (path === "/api/stories" && request.method === "GET") {
     const page = (await getFrontPage(env)) || emptyPage();
-    // Never block on AI — if empty, kick off a background refresh once
-    if (!page.stories.length) {
+    const pending = page.stories.some((s) => s.summaryStatus === "pending");
+    // Never block on AI — bootstrap empty pages and catch up digests while visitors are around.
+    // Refresh uses its own lock so overlapping polls don't stampede.
+    if (!page.stories.length || pending) {
       ctx.waitUntil(
-        refreshFrontPage(env).catch((e) => console.error("bootstrap refresh", e))
+        refreshFrontPage(env).catch((e) => console.error("background refresh", e))
       );
     }
-    return json({
-      updatedAt: page.updatedAt,
-      stories: page.stories,
-      count: page.stories.length,
-    });
+    return json(
+      {
+        updatedAt: page.updatedAt,
+        stories: page.stories,
+        count: page.stories.length,
+      },
+      200,
+      pending || !page.stories.length
+        ? { "cache-control": "no-store" }
+        : { "cache-control": "public, max-age=30" }
+    );
   }
 
   if (path === "/api/health" && request.method === "GET") {
