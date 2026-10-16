@@ -169,7 +169,8 @@ export async function refreshFrontPage(env: Env): Promise<FrontPage> {
       }
     }
 
-    withSummaries = await mergeSummariesIntoStories(env, stories);
+    // Use in-memory withSummaries (not a fresh KV merge) — Workers KV can return
+    // stale reads right after putSummary and would wipe ready digests back to pending.
     stats.pending = withSummaries.filter((s) => s.summaryStatus === "pending").length;
     stats.unavailable = withSummaries.filter((s) => s.summaryStatus === "unavailable").length;
 
