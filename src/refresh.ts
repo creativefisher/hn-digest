@@ -2,9 +2,11 @@ import { fetchTopStoryIds, fetchItems, fetchTopComments, itemToStory } from "./h
 import { fetchArticleText } from "./fetchArticle";
 import { summarizeStory } from "./summarize";
 import {
+  getFrontPage,
   getSummary,
   putSummary,
   putFrontPage,
+  putFrontPageIfChanged,
   mergeSummariesIntoStories,
   tryAcquireLock,
   releaseLock,
@@ -18,16 +20,16 @@ function num(env: Env, key: "TOP_N" | "SUMMARIES_PER_RUN", fallback: number): nu
 
 /**
  * Refresh frontpage metadata from HN, then summarize up to SUMMARIES_PER_RUN
- * stories that still need a summary. Designed for free-plan CPU limits:
+ * stories that still need a summary. Designed for free-plan CPU + KV limits:
  * page visits never call this; cron/admin do, in small batches.
+ * Frontpage is written once when the cache is warm (early write only if empty).
  */
 export async function refreshFrontPage(env: Env): Promise<FrontPage> {
   const gotLock = await tryAcquireLock(env, 120);
+  const cached = await getFrontPage(env);
   if (!gotLock) {
-    // Another refresh is running; return whatever we have after merging
-    const { getFrontPage } = await import("./cache");
-    const existing = await getFrontPage(env);
-    if (existing) return existing;
+    // Another refresh is running; return whatever we have
+    if (cached) return cached;
   }
 
   const stats: RefreshStats = {
@@ -58,13 +60,19 @@ export async function refreshFrontPage(env: Env): Promise<FrontPage> {
     // Attach cached summaries
     let withSummaries = await mergeSummariesIntoStories(env, stories);
 
-    // Persist frontpage early so visitors see fresh ranks even while AI runs
+    // Only early-persist when cache is empty so visitors get something while AI runs.
+    // When warm, skip this put to stay under free-tier KV write limits.
+    const cacheEmpty = !cached?.stories?.length;
     let page: FrontPage = {
       updatedAt: Date.now(),
       stories: withSummaries,
       refreshStats: stats,
     };
-    await putFrontPage(env, page);
+    let baseline: FrontPage | null | undefined = cached;
+    if (cacheEmpty) {
+      await putFrontPage(env, page);
+      baseline = page;
+    }
 
     // Pick stories that need summarization (pending only; skip already ready/unavailable)
     const needWork = withSummaries.filter((s) => s.summaryStatus === "pending");
@@ -131,7 +139,11 @@ export async function refreshFrontPage(env: Env): Promise<FrontPage> {
       stories: withSummaries,
       refreshStats: stats,
     };
-    await putFrontPage(env, page);
+    const wrote = await putFrontPageIfChanged(env, baseline, page);
+    if (!wrote && baseline) {
+      // Preserve prior updatedAt when content unchanged; still return fresh stats for admin
+      return { ...baseline, refreshStats: stats };
+    }
     return page;
   } finally {
     if (gotLock) await releaseLock(env);
