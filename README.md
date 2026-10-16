@@ -19,8 +19,8 @@ Designed for the Cloudflare Workers **free plan** (~10 ms CPU / request):
 | **Worker** `hn-digest` | Serves the static UI + JSON API |
 | **KV** `hn-digest-cache` | Caches frontpage + per-story summaries |
 | **Workers AI** | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` for summaries |
-| **Cron** `*/10 * * * *` | Refreshes HN list and summarizes a few new stories per run |
-| **Page visits** | Read KV only — never wait on AI or article fetches |
+| **Cron** `*/5 * * * *` | Refreshes HN list and summarizes a few new stories per run |
+| **Page visits** | Read KV only; if digests are still pending, a background refresh is kicked (non-blocking) |
 
 ### Refresh flow
 
@@ -76,7 +76,7 @@ echo "$ADMIN_SECRET" | npx wrangler secret put ADMIN_SECRET
 
 - `AI_MODEL` — Workers AI model id
 - `TOP_N` — stories to keep (≤ 30)
-- `SUMMARIES_PER_RUN` — max new summaries per cron/admin refresh (keep small on free plan)
+- `SUMMARIES_PER_RUN` — max new summaries per cron/admin/visit-triggered refresh (keep ≤4 on free plan)
 
 ## License
 
