@@ -13,6 +13,7 @@ export interface Story {
   type: string;
   text: string | null;
   summary: string | null;
+  bullets?: string[];
   summaryStatus: SummaryStatus;
   summarySource?: "article" | "comments" | "post" | "none";
 }
@@ -34,7 +35,10 @@ export interface RefreshStats {
 export interface SummaryRecord {
   id: number;
   status: SummaryStatus;
+  /** One-sentence core takeaway */
   summary: string | null;
+  /** Up to two short supporting facts */
+  bullets: string[];
   source: "article" | "comments" | "post" | "none";
   updatedAt: number;
   error?: string;

@@ -68,7 +68,13 @@
 
     let summaryHtml;
     if (story.summaryStatus === "ready" && story.summary) {
-      summaryHtml = `<p class="summary">${escapeHtml(story.summary)}</p>`;
+      const bullets = Array.isArray(story.bullets) ? story.bullets.filter(Boolean) : [];
+      const bulletsHtml = bullets.length
+        ? `<ul class="digest-points">${bullets
+            .map((b) => `<li>${escapeHtml(b)}</li>`)
+            .join("")}</ul>`
+        : "";
+      summaryHtml = `<div class="digest"><p class="takeaway">${escapeHtml(story.summary)}</p>${bulletsHtml}</div>`;
     } else if (story.summaryStatus === "unavailable") {
       summaryHtml = `<p class="summary unavailable">Summary unavailable</p>`;
     } else {

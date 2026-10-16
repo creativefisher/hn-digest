@@ -5,7 +5,7 @@ const META_KEY = "meta";
 const LOCK_KEY = "refresh_lock";
 
 export function summaryKey(id: number): string {
-  return `summary:${id}`;
+  return `summary:v2:${id}`;
 }
 
 export async function getFrontPage(env: Env): Promise<FrontPage | null> {
@@ -45,10 +45,11 @@ export async function mergeSummariesIntoStories(
   return Promise.all(
     stories.map(async (s) => {
       const rec = await getSummary(env, s.id);
-      if (!rec) return { ...s, summary: null, summaryStatus: "pending" as const };
+      if (!rec) return { ...s, summary: null, bullets: [], summaryStatus: "pending" as const };
       return {
         ...s,
         summary: rec.summary,
+        bullets: rec.bullets ?? [],
         summaryStatus: rec.status,
         summarySource: rec.source,
       };

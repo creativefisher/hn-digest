@@ -111,6 +111,7 @@ export async function refreshFrontPage(env: Env): Promise<FrontPage> {
           id: story.id,
           status: "unavailable",
           summary: null,
+          bullets: [],
           source: "none",
           updatedAt: Date.now(),
           error: err instanceof Error ? err.message : String(err),

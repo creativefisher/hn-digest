@@ -1,13 +1,13 @@
 # HN Digest
 
-A fast, beautiful Hacker News front-page reader with AI article summaries.
+A fast, beautiful Hacker News front-page reader with glanceable AI digests.
 
 Live: **https://hn-digest.ramanduke.workers.dev**
 
 ## What it does
 
 - Shows the current HN top 30 stories
-- Each card includes rank, title, domain, points, comments, author, age, and a short AI summary (≤ 6 sentences)
+- Each card includes rank, title, domain, points, comments, author, age, and a glanceable AI digest (one-line takeaway + up to 2 short bullets)
 - Light/dark theme, mobile-friendly
 
 ## Architecture

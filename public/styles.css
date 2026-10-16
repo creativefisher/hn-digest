@@ -236,6 +236,33 @@ h1 {
 .meta a:hover { color: var(--accent); }
 .meta .dot::before { content: "·"; margin-right: 0.55rem; }
 
+.digest {
+  margin: 0.7rem 0 0;
+}
+.takeaway {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.digest-points {
+  margin: 0.45rem 0 0;
+  padding: 0 0 0 1.1rem;
+  list-style: disc;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.digest-points li {
+  margin: 0.2rem 0 0;
+  padding-left: 0.1rem;
+}
+.digest-points li::marker {
+  color: var(--accent);
+}
 .summary {
   margin: 0.75rem 0 0;
   font-family: var(--serif);
@@ -283,4 +310,6 @@ h1 {
   .card { padding: 0.95rem 0.95rem; gap: 0.65rem 0.75rem; }
   .title { font-size: 1rem; }
   .summary { font-size: 0.94rem; }
+  .takeaway { font-size: 0.96rem; }
+  .digest-points { font-size: 0.84rem; }
 }
