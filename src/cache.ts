@@ -1,11 +1,25 @@
 import type { Env, FrontPage, SummaryRecord, Story } from "./types";
 
 const FRONT_KEY = "frontpage";
-const META_KEY = "meta";
 const LOCK_KEY = "refresh_lock";
 
 export function summaryKey(id: number): string {
   return `summary:v2:${id}`;
+}
+
+/** Stable fingerprint for skip-if-unchanged frontpage writes. */
+export function frontPageContentKey(stories: Story[]): string {
+  return stories
+    .map((s) => `${s.id}:${s.points}:${s.summaryStatus ?? "pending"}`)
+    .join("|");
+}
+
+export function frontPageUnchanged(
+  prev: FrontPage | null | undefined,
+  nextStories: Story[]
+): boolean {
+  if (!prev?.stories?.length) return false;
+  return frontPageContentKey(prev.stories) === frontPageContentKey(nextStories);
 }
 
 export async function getFrontPage(env: Env): Promise<FrontPage | null> {
@@ -20,7 +34,17 @@ export async function getFrontPage(env: Env): Promise<FrontPage | null> {
 
 export async function putFrontPage(env: Env, page: FrontPage): Promise<void> {
   await env.CACHE.put(FRONT_KEY, JSON.stringify(page));
-  await env.CACHE.put(META_KEY, JSON.stringify({ updatedAt: page.updatedAt }));
+}
+
+/** Write frontpage only when ids/scores/summary statuses changed. Returns whether written. */
+export async function putFrontPageIfChanged(
+  env: Env,
+  prev: FrontPage | null | undefined,
+  page: FrontPage
+): Promise<boolean> {
+  if (frontPageUnchanged(prev, page.stories)) return false;
+  await putFrontPage(env, page);
+  return true;
 }
 
 export async function getSummary(env: Env, id: number): Promise<SummaryRecord | null> {

@@ -17,7 +17,8 @@ binding = "CACHE"
 id = "2487154325a045d18bd8b93ee685d556"
 
 [triggers]
-crons = ["*/10 * * * *"]
+# Every 6 hours — keeps free-tier KV writes well under 1k/day
+crons = ["0 */6 * * *"]
 
 [vars]
 AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"

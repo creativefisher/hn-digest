@@ -12,21 +12,23 @@ Live: **https://hn-digest.ramanduke.workers.dev**
 
 ## Architecture
 
-Designed for the Cloudflare Workers **free plan** (~10 ms CPU / request):
+Designed for the Cloudflare Workers **free plan** (~10 ms CPU / request, tight KV write quota):
 
 | Piece | Role |
 | --- | --- |
 | **Worker** `hn-digest` | Serves the static UI + JSON API |
 | **KV** `hn-digest-cache` | Caches frontpage + per-story summaries |
 | **Workers AI** | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` for summaries |
-| **Cron** `*/10 * * * *` | Refreshes HN list and summarizes a few new stories per run |
+| **Cron** `0 */6 * * *` | Refreshes HN list every 6 hours and summarizes a few new stories per run |
 | **Page visits** | Read KV only — never wait on AI or article fetches |
+
+Designed to stay under the Workers **free-tier KV write limit** (1,000 puts/day): cron is infrequent, the unused `meta` key is not written, frontpage is written once when the cache is warm (early write only if empty), and unchanged id/score/summary-status snapshots are skipped.
 
 ### Refresh flow
 
 1. Cron (or `GET /api/refresh?key=…`) pulls top story IDs from the [HN Firebase API](https://github.com/HackerNews/API).
-2. Story metadata is written to KV immediately.
-3. Up to `SUMMARIES_PER_RUN` (default 4) pending stories are processed:
+2. If the frontpage cache is empty, story metadata is written to KV immediately; otherwise the write waits until the end of the run (and is skipped if ids/scores/summary statuses are unchanged).
+3. Up to `SUMMARIES_PER_RUN` (default 3) pending stories are processed:
    - Article HTML is fetched with a size cap; text is extracted via **HTMLRewriter** (no heavy DOM parsers).
    - Ask/Show/text posts use the post body.
    - If the article is blocked/paywalled/PDF, fall back to title + top comments, or mark **Summary unavailable**.
@@ -74,6 +76,7 @@ echo "$ADMIN_SECRET" | npx wrangler secret put ADMIN_SECRET
 
 ## Config (`wrangler.toml`)
 
+- Cron — `0 */6 * * *` (every 6 hours; keep sparse on free-tier KV)
 - `AI_MODEL` — Workers AI model id
 - `TOP_N` — stories to keep (≤ 30)
 - `SUMMARIES_PER_RUN` — max new summaries per cron/admin refresh (keep small on free plan)
